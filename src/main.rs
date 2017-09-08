@@ -1,6 +1,8 @@
-#[macro_use] extern crate error_chain;
+#[macro_use]
+extern crate error_chain;
 extern crate structopt;
-#[macro_use] extern crate structopt_derive;
+#[macro_use]
+extern crate structopt_derive;
 extern crate regex;
 extern crate tabwriter;
 
@@ -23,13 +25,13 @@ error_chain! {
 #[structopt(name = "cask-update")]
 struct Cli {
     /// Long format display
-    #[structopt(short="l", long="long")]
+    #[structopt(short = "l", long = "long")]
     long: bool,
     /// Perform update
-    #[structopt(short="u", long="update")]
+    #[structopt(short = "u", long = "update")]
     update: bool,
     /// Verbose mode
-    #[structopt(short="V", long="verbose")]
+    #[structopt(short = "V", long = "verbose")]
     verbose: bool,
 }
 
@@ -55,39 +57,61 @@ fn run() -> Result<()> {
     let current_version_pattern = Regex::new(r".*: (.*)")?;
     let installed_version_pattern = Regex::new(r"/usr/local/Caskroom/.*/(.*) \(.*\)")?;
 
-    let installed_casks: Vec<Cask> = casks.lines().map(|s| s.trim()).map(|name| {
-        let status = Command::new("brew")
-            .arg("cask").arg("info").arg(name).output()?;
-        let info = String::from_utf8(status.stdout)?;
-        let mut current= None;
-        let mut installed= None;
+    let installed_casks: Vec<Cask> = casks
+        .lines()
+        .map(|s| s.trim())
+        .map(|name| {
+            let status = Command::new("brew")
+                .arg("cask")
+                .arg("info")
+                .arg(name)
+                .output()?;
+            let info = String::from_utf8(status.stdout)?;
+            let mut current = None;
+            let mut installed = None;
 
-        let header: Vec<_> = info.lines().take(3).collect();
+            let header: Vec<_> = info.lines().take(3).collect();
 
-        if let Some(version) = current_version_pattern.captures(header[0]) {
-            current= Some(version[1].to_string());
-        }
-        if let Some(version) = installed_version_pattern.captures(header[2]) {
-            installed= Some(version[1].to_string());
-        }
+            if let Some(version) = current_version_pattern.captures(header[0]) {
+                current = Some(version[1].to_string());
+            }
+            if let Some(version) = installed_version_pattern.captures(header[2]) {
+                installed = Some(version[1].to_string());
+            }
 
-        let current = current.ok_or(format!("Unknown current version for {}", name))?;
-        let installed = installed.ok_or(format!("Unknown installed version for {}", name))?;
-        let updatable = current != installed;
+            let current = current.ok_or(
+                format!("Unknown current version for {}", name),
+            )?;
+            let installed = installed.ok_or(
+                format!("Unknown installed version for {}", name),
+            )?;
+            let updatable = current != installed;
 
-        Ok(Cask {
-            name,
-            installed,
-            current,
-            updatable,
+            Ok(Cask {
+                name,
+                installed,
+                current,
+                updatable,
+            })
         })
-    }).collect::<Result<Vec<_>>>()?;
+        .collect::<Result<Vec<_>>>()?;
 
     if cli.verbose {
         let mut tw = TabWriter::new(std::io::stdout());
         write!(&mut tw, "Cask\tInstalled\tCurrent\tStatus\n")?;
         for cask in &installed_casks {
-            write!(&mut tw, "{}\t{}\t{}\t{}\n", cask.name, cask.installed, cask.current, if cask.updatable { "outdated" } else { "up to date"})?;
+            write!(
+                &mut tw,
+                "{}\t{}\t{}\t{}\n",
+                cask.name,
+                cask.installed,
+                cask.current,
+                if cask.updatable {
+                    "outdated"
+                } else {
+                    "up to date"
+                }
+            )?;
         }
 
         tw.flush()?;
@@ -98,7 +122,12 @@ fn run() -> Result<()> {
     for cask in updatable_casks {
         if cli.update {
             if cli.long {
-                println!("Updating {} from {} to {}", cask.name, cask.installed, cask.current);
+                println!(
+                    "Updating {} from {} to {}",
+                    cask.name,
+                    cask.installed,
+                    cask.current
+                );
             }
             Command::new("brew")
                 .arg("cask")
@@ -109,7 +138,12 @@ fn run() -> Result<()> {
                 .stderr(Stdio::inherit())
                 .status()?;
         } else if cli.long {
-            println!("{}: installed {}, current: {}", cask.name, cask.installed, cask.current);
+            println!(
+                "{}: installed {}, current: {}",
+                cask.name,
+                cask.installed,
+                cask.current
+            );
         } else if !cli.verbose {
             println!("{}", cask.name);
         }
