@@ -38,7 +38,7 @@ struct Cli {
 struct Cask<'a> {
     name: &'a str,
     installed: String,
-    current: String,
+    latest: String,
     updatable: bool,
 }
 
@@ -54,7 +54,7 @@ fn run() -> Result<()> {
 
     let casks = String::from_utf8(output.stdout)?;
 
-    let current_version_pattern = Regex::new(r".*: (.*)")?;
+    let latest_version_pattern = Regex::new(r".*: (.*)")?;
     let installed_version_pattern = Regex::new(r"/usr/local/Caskroom/.*/(.*) \(.*\)")?;
 
     let installed_casks: Vec<Cask> = casks
@@ -67,30 +67,31 @@ fn run() -> Result<()> {
                 .arg(name)
                 .output()?;
             let info = String::from_utf8(status.stdout)?;
-            let mut current = None;
+            let mut latest = None;
             let mut installed = None;
 
             let header: Vec<_> = info.lines().take(3).collect();
 
-            if let Some(version) = current_version_pattern.captures(header[0]) {
-                current = Some(version[1].to_string());
+            if let Some(version) = latest_version_pattern.captures(header[0]) {
+                latest = Some(version[1].to_string());
             }
             if let Some(version) = installed_version_pattern.captures(header[2]) {
                 installed = Some(version[1].to_string());
             }
 
-            let current = current.ok_or(
-                format!("Unknown current version for {}", name),
+            let latest = latest.ok_or(
+                format!("Unknown latest version for {}", name),
             )?;
             let installed = installed.ok_or(
                 format!("Unknown installed version for {}", name),
             )?;
-            let updatable = current != installed;
+            // TODO make list of always updatable casks configurable
+            let updatable = latest != installed || latest == "latest";
 
             Ok(Cask {
                 name,
                 installed,
-                current,
+                latest,
                 updatable,
             })
         })
@@ -98,18 +99,18 @@ fn run() -> Result<()> {
 
     if cli.verbose {
         let mut tw = TabWriter::new(std::io::stdout());
-        write!(&mut tw, "Cask\tInstalled\tCurrent\tStatus\n")?;
+        write!(&mut tw, "Cask\tInstalled\tLatest\tNeeds update\n")?;
         for cask in &installed_casks {
             write!(
                 &mut tw,
                 "{}\t{}\t{}\t{}\n",
                 cask.name,
                 cask.installed,
-                cask.current,
+                cask.latest,
                 if cask.updatable {
-                    "outdated"
+                    "Yes"
                 } else {
-                    "up to date"
+                    "No"
                 }
             )?;
         }
@@ -126,7 +127,7 @@ fn run() -> Result<()> {
                     "Updating {} from {} to {}",
                     cask.name,
                     cask.installed,
-                    cask.current
+                    cask.latest
                 );
             }
             Command::new("brew")
@@ -139,10 +140,10 @@ fn run() -> Result<()> {
                 .status()?;
         } else if cli.long {
             println!(
-                "{}: installed {}, current: {}",
+                "{}: installed {}, latest: {}",
                 cask.name,
                 cask.installed,
-                cask.current
+                cask.latest
             );
         } else if !cli.verbose {
             println!("{}", cask.name);

@@ -1,7 +1,8 @@
 [package]
 authors = ["Frederic Dumont <fdumontmd@gmail.com>"]
 name = "cask-update"
-version = "0.1.0"
+version = "0.2.0"
+publish = false
 
 [dependencies]
 error-chain = "0.11.0"
