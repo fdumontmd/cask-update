@@ -105,8 +105,8 @@ fn run() -> Result<()> {
                 &mut tw,
                 "{}\t{}\t{}\t{}\n",
                 cask.name,
-                cask.installed,
-                cask.latest,
+                cask.installed.chars().take(20).collect::<String>(),
+                cask.latest.chars().take(20).collect::<String>(),
                 if cask.updatable { "Yes" } else { "No" }
             )?;
         }
