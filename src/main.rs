@@ -1,9 +1,9 @@
 #[macro_use]
 extern crate error_chain;
+extern crate regex;
 extern crate structopt;
 #[macro_use]
 extern crate structopt_derive;
-extern crate regex;
 extern crate tabwriter;
 
 use std::process::{Command, Stdio};
@@ -24,12 +24,9 @@ error_chain! {
 #[derive(StructOpt, Debug)]
 #[structopt(name = "cask-update")]
 struct Cli {
-    /// Long format display
-    #[structopt(short = "l", long = "long")]
-    long: bool,
-    /// Perform update
-    #[structopt(short = "u", long = "update")]
-    update: bool,
+    /// List only
+    #[structopt(short = "l", long = "list")]
+    list: bool,
     /// Verbose mode
     #[structopt(short = "V", long = "verbose")]
     verbose: bool,
@@ -57,7 +54,7 @@ fn run() -> Result<()> {
     let latest_version_pattern = Regex::new(r".*: (.*)")?;
     let installed_version_pattern = Regex::new(r"/usr/local/Caskroom/.*/(.*) \(.*\)")?;
 
-    let installed_casks: Vec<Cask> = casks
+    let mut installed_casks: Vec<Cask> = casks
         .lines()
         .map(|s| s.trim())
         .map(|name| {
@@ -79,12 +76,8 @@ fn run() -> Result<()> {
                 installed = Some(version[1].to_string());
             }
 
-            let latest = latest.ok_or(
-                format!("Unknown latest version for {}", name),
-            )?;
-            let installed = installed.ok_or(
-                format!("Unknown installed version for {}", name),
-            )?;
+            let latest = latest.ok_or(format!("Unknown latest version for {}", name))?;
+            let installed = installed.ok_or(format!("Unknown installed version for {}", name))?;
             // TODO make list of always updatable casks configurable
             let updatable = latest != installed || latest == "latest";
 
@@ -97,7 +90,14 @@ fn run() -> Result<()> {
         })
         .collect::<Result<Vec<_>>>()?;
 
-    if cli.verbose {
+    installed_casks.sort_by(|c1, c2| {
+        // actually put those that need to be updated at the bottom
+        // as the list of casks is usually long and we want to know
+        // about the updatable casks without scrolling
+        c1.updatable.cmp(&c2.updatable).then(c1.name.cmp(&c2.name))
+    });
+
+    if cli.list {
         let mut tw = TabWriter::new(std::io::stdout());
         write!(&mut tw, "Cask\tInstalled\tLatest\tNeeds update\n")?;
         for cask in &installed_casks {
@@ -107,27 +107,19 @@ fn run() -> Result<()> {
                 cask.name,
                 cask.installed,
                 cask.latest,
-                if cask.updatable {
-                    "Yes"
-                } else {
-                    "No"
-                }
+                if cask.updatable { "Yes" } else { "No" }
             )?;
         }
 
         tw.flush()?;
-    }
+    } else {
+        let updatable_casks = installed_casks.into_iter().filter(|c| c.updatable);
 
-    let updatable_casks = installed_casks.into_iter().filter(|c| c.updatable);
-
-    for cask in updatable_casks {
-        if cli.update {
-            if cli.long {
+        for cask in updatable_casks {
+            if cli.verbose {
                 println!(
                     "Updating {} from {} to {}",
-                    cask.name,
-                    cask.installed,
-                    cask.latest
+                    cask.name, cask.installed, cask.latest
                 );
             }
             Command::new("brew")
@@ -138,15 +130,6 @@ fn run() -> Result<()> {
                 .stdout(Stdio::inherit())
                 .stderr(Stdio::inherit())
                 .status()?;
-        } else if cli.long {
-            println!(
-                "{}: installed {}, latest: {}",
-                cask.name,
-                cask.installed,
-                cask.latest
-            );
-        } else if !cli.verbose {
-            println!("{}", cask.name);
         }
     }
 
