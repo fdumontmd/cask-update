@@ -23,7 +23,7 @@ error_chain! {
     }
 }
 
-/// Check or update Casks
+/// Check or update Casks more reliably than brew cask upgrade
 #[derive(StructOpt, Debug)]
 #[structopt(name = "cask-update")]
 struct Cli {
