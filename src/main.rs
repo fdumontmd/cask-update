@@ -54,7 +54,7 @@ fn run() -> Result<()> {
 
     let casks = String::from_utf8(output.stdout)?;
 
-    let latest_version_pattern = Regex::new(r".*: (.*)")?;
+    let latest_version_pattern = Regex::new(r".*: (\S*)( \(auto_updates\))?$")?;
     let installed_path_pattern = Regex::new(r"(/usr/local/Caskroom/.*/(.*)) \(.*\)")?;
 
     let mut installed_casks: Vec<Cask> = casks
